@@ -10,7 +10,7 @@ import (
 	"github.com/go-playground/locales/en"
 	"github.com/go-playground/locales/zh"
 	"github.com/go-playground/locales/zh_Hant_TW"
-	"github.com/go-playground/universal-translator"
+	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -19,7 +19,9 @@ var uni = ut.New(en.New(), zh.New(), zh_Hant_TW.New())
 // Translations .
 func Translations() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 获取请求头中的locale
 		locale := c.GetHeader("locale")
+		// 获取翻译器
 		trans, _ := uni.GetTranslator(locale)
 		v, ok := binding.Validator.Engine().(*validator.Validate)
 		if ok {

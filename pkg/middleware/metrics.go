@@ -87,27 +87,39 @@ func calcRequestSize(r *http.Request) float64 {
 }
 
 // Metrics returns a gin.HandlerFunc for exporting some Web metrics
+// 记录请求总数、处理中请求数、请求耗时、请求大小、响应大小
 func Metrics(serviceName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 记录请求开始时间
 		start := time.Now()
 		c.Next()
 
+		// 获取响应状态码
 		status := fmt.Sprintf("%d", c.Writer.Status())
+		// 获取请求路径
 		handler := c.Request.URL.Path
+		// 获取请求方法
 		method := c.Request.Method
 
 		labels := []string{status, handler, method, serviceName}
 
 		// no response content will return -1
+		// 获取响应大小
 		respSize := c.Writer.Size()
 		if respSize < 0 {
 			respSize = 0
 		}
+		// 增加当前正在处理请求的QPS
 		curReqCount.Inc(labels...)
+		// 延迟减少当前正在处理请求的QPS
 		defer curReqCount.Dec(labels...)
+		// 增加请求总数
 		reqCount.Inc(labels...)
+		// 记录请求响应时间
 		reqDuration.Observe(int64(time.Since(start).Seconds()), labels...)
+		// 记录请求大小
 		reqSizeBytes.Observe(int64(calcRequestSize(c.Request)), labels...)
+		// 记录响应大小
 		respSizeBytes.Observe(int64(respSize), labels...)
 	}
 }

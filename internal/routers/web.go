@@ -5,6 +5,7 @@ import (
 	"time"
 
 	gintemplate "github.com/foolin/gin-template"
+	// 用于配置静态文件服务
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 
@@ -21,6 +22,7 @@ func LoadWebRouter(g *gin.Engine) *gin.Engine {
 	// Middlewares.
 
 	// 404 Handler.
+	// 处理请求未配置的路由以及未配置的方法的请求返回404
 	router.NoRoute(func(c *gin.Context) {
 		web.Error404(c)
 	})
@@ -28,9 +30,12 @@ func LoadWebRouter(g *gin.Engine) *gin.Engine {
 		web.Error404(c)
 	})
 
+	// 使用static中间件，静态文件服务
 	router.Use(static.Serve("/static", static.LocalFile("./static", false)))
 
 	//new template engine
+	// 用的Gin Template引擎
+	// 正式应用应该是独立的前端工程，这里只是为了方便演示
 	router.HTMLRender = gintemplate.New(gintemplate.TemplateConfig{
 		Root:      "internal/templates",
 		Extension: ".html",
@@ -67,6 +72,8 @@ func LoadWebRouter(g *gin.Engine) *gin.Engine {
 
 	// login
 	router.GET("/login", webUser.GetLogin)
+
+	// 绑定接口，这里的接口是传统 SSR 网站会保留 /login 的这类页面路由
 	router.POST("/login", webUser.DoLogin)
 	router.GET("/logout", webUser.Logout)
 
