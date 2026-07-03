@@ -5,6 +5,7 @@ import (
 )
 
 // Svc global var
+// 包级全局变量，用于存储Service实例
 var Svc Service
 
 const (

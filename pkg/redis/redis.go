@@ -24,6 +24,7 @@ const (
 
 // RedisManager define a redis manager
 // nolint
+// RedisManager的设计也是通过一个锁和一个map来管理redis实例，key是redis名称，value是redis实例
 type RedisManager struct {
 	clients map[string]*redis.Client
 	*sync.RWMutex
@@ -31,11 +32,14 @@ type RedisManager struct {
 
 // Init init a default redis instance
 func Init() (*redis.Client, func(), error) {
+	// 创建一个redis管理器
 	clientManager := NewRedisManager()
+	// 通过redis.yaml配置文件加载默认redis实例
 	rdb, err := clientManager.GetClient(DefaultRedisName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("init redis err: %s", err.Error())
 	}
+	// 创建一个关闭函数，用于关闭redis客户端
 	cleanFunc := func() {
 		_ = rdb.Close()
 	}
@@ -62,6 +66,7 @@ func (r *RedisManager) GetClient(name string) (*redis.Client, error) {
 	}
 	r.RUnlock()
 
+	// 如果不存在，则调用LoadConf方法加载redis配置
 	c, err := LoadConf(name)
 	if err != nil {
 		panic(fmt.Sprintf("load redis conf err: %v", err))
@@ -70,6 +75,7 @@ func (r *RedisManager) GetClient(name string) (*redis.Client, error) {
 	// create a redis client
 	r.Lock()
 	defer r.Unlock()
+	// 创建一个redis客户端
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         c.Addr,
 		Password:     c.Password,

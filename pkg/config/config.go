@@ -57,6 +57,8 @@ func New(cfgDir string, opts ...Option) *Config {
 func Load(filename string, val interface{}) error { return conf.Load(filename, val) }
 
 // Load scan data to struct.
+// 通过LoadWithType方法加载配置文件，并反序列化到val结构体中，val是外部传入的结构体，最终将配置文件中的数据反序列化到val结构体中
+// 但是目前缺少了显式的配置校验
 func (c *Config) Load(filename string, val interface{}) error {
 	v, err := c.LoadWithType(filename, c.configType)
 	if err != nil {

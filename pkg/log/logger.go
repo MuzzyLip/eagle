@@ -43,6 +43,7 @@ type Logger interface {
 // loadConf load logger config
 func loadConf() (ret *Config, err error) {
 	var cfg Config
+	// 通过 /pkg/config/config.go 中的 Load 方法加载 logger 配置文件
 	if err := config.Load("logger", &cfg); err != nil {
 		return nil, err
 	}
@@ -52,12 +53,14 @@ func loadConf() (ret *Config, err error) {
 // Init init log and return a global logger
 func Init(opts ...Option) Logger {
 	var err error
+	// 加载 logger 配置文件
 	cfg, err := loadConf()
 	if err != nil {
 		panic(fmt.Sprintf("load logger conf err: %v", err))
 	}
 
 	// new zap logger
+	// 创建一个 zap logger 实例
 	logger, err = newZapLogger(cfg, opts...)
 	if err != nil {
 		_ = fmt.Errorf("init newZapLogger err: %v", err)

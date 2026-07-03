@@ -20,6 +20,7 @@ var (
 var _ Repository = (*repository)(nil)
 
 // Repository 定义用户仓库接口
+// 定义接口，相当于Rust的Trait，用于定义一组方法，用于操作数据库
 type Repository interface {
 	// BaseUser
 	CreateUser(ctx context.Context, user *model.UserBaseModel) (id uint64, err error)
@@ -58,6 +59,7 @@ type repository struct {
 }
 
 // New new a repository and return
+// 创建一个Repository，传入的gorm的DB实例，用于操作数据库
 func New(db *gorm.DB) Repository {
 	return &repository{
 		orm:       db,

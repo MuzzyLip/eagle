@@ -20,6 +20,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
+
+	// 这个库是用来自动设置GOMAXPROCS的，根据当前机器的CPU核心数来设置GOMAXPROCS
+	// 这样可以让Go程序充分利用多核CPU，提高性能
 	_ "go.uber.org/automaxprocs"
 
 	"github.com/go-eagle/eagle/internal/model"
@@ -29,6 +32,7 @@ import (
 	eagle "github.com/go-eagle/eagle/pkg/app"
 	"github.com/go-eagle/eagle/pkg/config"
 	logger "github.com/go-eagle/eagle/pkg/log"
+	"github.com/go-eagle/eagle/pkg/redis"
 	v "github.com/go-eagle/eagle/pkg/version"
 )
 
@@ -77,20 +81,28 @@ func main() {
 	eagle.Conf = &cfg
 
 	// -------------- init resource -------------
+	// 初始化日志
 	logger.Init()
 	// init db
+	// 初始化数据库
 	model.Init()
 	// init redis
 	// nolint: errcheck
-	// redis.Init()
+	// 之前这里注释了Redis，但是AI说其实有不少代码依赖了全局的redis.RedisClient，所以这里还是初始化
+	redis.Init()
 
 	// init service
+	// 获取default database实例
 	db, _ := model.GetDB()
+	// 绑定全局Svc实例为default database实例的Repository实例
 	service.Svc = service.New(repository.New(db))
 
+	// 设置gin模式 为debug、release、test中的一个
 	gin.SetMode(cfg.Mode)
 
 	// init pprof server
+	// 创建一个goroutine，用于启动pprof服务器
+	// pprof是Go性能剖析工具，运行在独立的端口上，方便我们进行性能分析
 	go func() {
 		fmt.Printf("Listening and serving PProf HTTP on %s\n", cfg.PprofPort)
 		if err := http.ListenAndServe(cfg.PprofPort, http.DefaultServeMux); err != nil && err != http.ErrServerClosed {
@@ -109,6 +121,7 @@ func main() {
 		),
 	)
 
+	// 启动应用程序
 	if err := app.Run(); err != nil {
 		panic(err)
 	}

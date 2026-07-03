@@ -60,6 +60,7 @@ type zapLogger struct {
 }
 
 // newZapLogger new zap logger
+// 这一层适用于需要拿Zap实例的地方用，比如：gRPC的zap interceptor
 func newZapLogger(cfg *Config, opts ...Option) (*zap.Logger, error) {
 	for _, opt := range opts {
 		opt(cfg)
@@ -68,6 +69,8 @@ func newZapLogger(cfg *Config, opts ...Option) (*zap.Logger, error) {
 }
 
 // newLoggerWithCallerSkip new logger with caller skip
+// 这里的skip是为了往上多跳n层调用栈，比如skip为1，则跳过1层调用栈，则最终的日志会显示上一层的调用栈
+// 这个函数为了把Caller校正回业务层
 func newLoggerWithCallerSkip(cfg *Config, skip int, opts ...Option) (Logger, error) {
 	for _, opt := range opts {
 		opt(cfg)
@@ -76,23 +79,30 @@ func newLoggerWithCallerSkip(cfg *Config, skip int, opts ...Option) (Logger, err
 }
 
 func buildLogger(cfg *Config, skip int) *zap.Logger {
+	// 设置日志目录
 	logDir = cfg.LoggerDir
 	if strings.HasSuffix(logDir, "/") {
 		logDir = strings.TrimRight(logDir, "/")
 	}
 
+	// 设置编码器配置
 	var encoderCfg zapcore.EncoderConfig
+	// 如果开发模式，则使用开发模式编码器配置
 	if cfg.Development {
 		encoderCfg = zap.NewDevelopmentEncoderConfig()
 	} else {
 		encoderCfg = zap.NewProductionEncoderConfig()
 	}
+	// 设置时间编码器
 	encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 
+	// 设置编码器
 	var encoder zapcore.Encoder
 	if cfg.Encoding == WriterConsole {
+		// 使用控制台编码器
 		encoder = zapcore.NewConsoleEncoder(encoderCfg)
 	} else {
+		// 使用JSON编码器
 		encoder = zapcore.NewJSONEncoder(encoderCfg)
 	}
 
@@ -100,6 +110,7 @@ func buildLogger(cfg *Config, skip int) *zap.Logger {
 	var options []zap.Option
 	// init option
 	hostname, _ = os.Hostname()
+	// 注入公共字段，便于定位是哪台实例，哪个服务打出来的日志
 	option := zap.Fields(
 		zap.String("ip", utils.GetLocalIP()),
 		zap.String("app_id", cfg.ServiceName),
@@ -111,22 +122,28 @@ func buildLogger(cfg *Config, skip int) *zap.Logger {
 	configLevel := getLoggerLevel(cfg)
 
 	writers := strings.Split(cfg.Writers, ",")
+	// 遍历writers，根据不同的writer类型，创建不同的core
 	for _, w := range writers {
+		// 根据writer类型，创建不同的core
 		switch w {
+		// 使用控制台输出
 		case WriterConsole:
 			cores = append(cores, zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), configLevel))
+		// 使用文件输出
 		case WriterFile:
-			// info
+			// 这里区分getInfoCore、getWarnCore、getErrorCore是为了按级别输出日志，比如info级别只输出info级别，warn级别只输出warn级别，error级别只输出error级别
+			// 并且每个级别都会使用BufferedWriteSyncer来缓存日志，然后每隔一段时间flush一次，避免频繁写入磁盘，提高性能
+			// info -> eagle.log
 			cores = append(cores, getInfoCore(encoder, cfg, configLevel))
 
-			// warning
+			// warning -> eagle_warn.log
 			core, option := getWarnCore(encoder, cfg, configLevel)
 			cores = append(cores, core)
 			if option != nil {
 				options = append(options, option)
 			}
 
-			// error
+			// error -> eagle_error.log
 			core, option = getErrorCore(encoder, cfg, configLevel)
 			cores = append(cores, core)
 			if option != nil {
@@ -227,7 +244,9 @@ func getErrorCore(encoder zapcore.Encoder, cfg *Config, configLevel zapcore.Leve
 // getLogWriterWithTime 按时间(小时)进行切割
 func getLogWriterWithTime(cfg *Config, filename string) io.Writer {
 	logFullPath := filename
+	// 日志切割策略
 	rotationPolicy := cfg.LogRollingPolicy
+	// 文件最大保存份数
 	backupCount := cfg.LogBackupCount
 	// 默认
 	var (
@@ -235,13 +254,16 @@ func getLogWriterWithTime(cfg *Config, filename string) io.Writer {
 		// 时间格式使用shell的date时间格式
 		timeFormat string
 	)
+	// 如果是按小时分割
 	if rotationPolicy == RotateTimeHourly {
 		rotateDuration = time.Hour
 		timeFormat = ".%Y%m%d%H"
+		// 如果是按天分割
 	} else if rotationPolicy == RotateTimeDaily {
 		rotateDuration = time.Hour * 24
 		timeFormat = ".%Y%m%d"
 	}
+	// 创建一个rotatelogs实例，用于日志文件轮转
 	hook, err := rotatelogs.New(
 		logFullPath+timeFormat,
 		rotatelogs.WithLinkName(logFullPath),        // 生成软链，指向最新日志文件

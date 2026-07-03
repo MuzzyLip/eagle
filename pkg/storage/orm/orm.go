@@ -30,6 +30,7 @@ const (
 
 var (
 	// DBMap store database instance
+	// 包级全局变量，用于存储数据库实例，key是数据库名称，value是数据库实例
 	DBMap = make(map[string]*gorm.DB)
 	// DBLock database locker
 	DBLock sync.Mutex
@@ -63,8 +64,10 @@ func New(names ...string) error {
 		return fmt.Errorf("no set databasename")
 	}
 
+	// 这里也是一样的，通过map[string]*gorm.DB来存储数据库实例，key是数据库名称，value是数据库实例
 	clientManager := NewManager()
 	for _, name := range names {
+		// 创建或挂载数据库实例到instances map中
 		_, err := clientManager.GetInstance(name)
 		if err != nil {
 			return fmt.Errorf("init database name: %+v, err: %+v", name, err)
@@ -77,6 +80,7 @@ func New(names ...string) error {
 // Manager define a manager
 type Manager struct {
 	instances map[string]*gorm.DB
+	// 通过RWMutex互斥锁保证并发安全，主要保护instances map并发读写竟态导致 concurrent map read and map write 这类问题
 	*sync.RWMutex
 }
 
@@ -109,12 +113,14 @@ func GetDB(name string) (*gorm.DB, error) {
 func (m *Manager) GetInstance(name string) (*gorm.DB, error) {
 	// get client from map
 	m.RLock()
+	// 先从instances map中尝试获取已加载的数据库实例
 	if ins, ok := m.instances[name]; ok {
 		m.RUnlock()
 		return ins, nil
 	}
 	m.RUnlock()
 
+	// 如果不存在，则调用LoadConf方法加载数据库配置
 	c, err := LoadConf(name)
 	if err != nil {
 		return nil, fmt.Errorf("load database conf err: %+v", err)
@@ -125,6 +131,7 @@ func (m *Manager) GetInstance(name string) (*gorm.DB, error) {
 	defer m.Unlock()
 
 	instance := NewInstance(c)
+	// 挂载到instances map中，以便下次直接从instances map中获取
 	m.instances[name] = instance
 	DBMap[name] = instance
 
@@ -137,7 +144,9 @@ func NewInstance(c *Config) (db *gorm.DB) {
 		err   error
 		sqlDB *sql.DB
 	)
+	// 通过数据库类型，选择不同的数据库驱动，得到数据库的dsn
 	dsn := getDSN(c)
+	// 根据数据库驱动，选择不同的数据库驱动，创建数据库实例
 	switch c.Driver {
 	case DriverMySQL:
 		db, err = gorm.Open(mysql.Open(dsn), gormConfig(c))
@@ -178,6 +187,7 @@ func NewInstance(c *Config) (db *gorm.DB) {
 
 // LoadConf load database config
 func LoadConf(name string) (ret *Config, err error) {
+	// 通过 /pkg/config/config.go 中的 LoadWithType 方法指定加载 /config/环境/database.yaml 数据库配置文件
 	v, err := config.LoadWithType("database", "yaml")
 	if err != nil {
 		return nil, err
