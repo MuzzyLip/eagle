@@ -11,6 +11,7 @@ func WithFileType(fileType string) Option {
 }
 
 // WithEnv env var
+// 返回一个Option函数，用于设置当前环境
 func WithEnv(name string) Option {
 	return func(c *Config) {
 		c.env = name
